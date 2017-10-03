@@ -1,6 +1,5 @@
 ﻿using Certify.Management;
 using PropertyChanged;
-using Serilog;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -8,6 +7,7 @@ using System.ComponentModel;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using NLog;
 
 namespace Certify.Models
 {
@@ -65,22 +65,46 @@ namespace Certify.Models
 
         public static void AppendLog(string managedItemId, ManagedSiteLogItem logItem)
         {
-            //FIXME:
-            var logPath = GetLogPath(managedItemId);
+            // get or create logger instance per managed item
+            Logger log = LogManager.GetLogger($"site_{managedItemId}");
+            if (log==null)
+            {
+                //register new log
+                var logPath = GetLogPath(managedItemId);
 
-            var log = new LoggerConfiguration()
-                .WriteTo.File(logPath, shared: true)
-                .CreateLogger();
+                var logConfig = new NLog.Config.LoggingConfiguration();
+                var fileTarget = new NLog.Targets.FileTarget();
 
-            var logLevel = Serilog.Events.LogEventLevel.Information;
+                logConfig.AddTarget(managedItemId, fileTarget);
+                fileTarget.FileName = logPath;
+                fileTarget.Layout= @"${date:format=HH\:mm\:ss} ${logger} ${message}";
+                
+            }
+
+            /*var logLevel = Serilog.Events.LogEventLevel.Information;
             if (logItem.LogItemType == LogItemType.CertficateRequestFailed) logLevel = Serilog.Events.LogEventLevel.Error;
             if (logItem.LogItemType == LogItemType.GeneralError) logLevel = Serilog.Events.LogEventLevel.Error;
-            if (logItem.LogItemType == LogItemType.GeneralWarning) logLevel = Serilog.Events.LogEventLevel.Warning;
+            if (logItem.LogItemType == LogItemType.GeneralWarning) logLevel = Serilog.Events.LogEventLevel.Warning;*/
 
-            log.Write(logLevel, logItem.Message);
-            //TODO: log to per site log
-            //if (this.Logs == null) this.Logs = new List<ManagedSiteLogItem>();
-            //this.Logs.Add(logItem);
+            if (log!=null)
+            {
+                if (logItem.LogItemType == LogItemType.CertficateRequestFailed)
+                {
+                    log.Error(logItem.Message);
+                } else if (logItem.LogItemType == LogItemType.GeneralError)
+                {
+                    log.Error(logItem.Message);
+                }
+                else if (logItem.LogItemType == LogItemType.GeneralWarning)
+                {
+                    log.Warn(logItem.Message);
+                }
+                else
+                {
+                    log.Info(logItem.Message);
+                }
+            }
+            
         }
     }
 
